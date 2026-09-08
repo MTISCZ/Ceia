@@ -6,9 +6,7 @@ aplicación web funcional que integra frontend, backend y base de datos.
 
 ## Integrantes
 
-- [Nombre 1]
-- [Nombre 2]
-- [Nombre 3]
+- [Matias correa]
 
 ## Stack técnico
 
