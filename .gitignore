@@ -1,0 +1,27 @@
+# Entorno virtual
+venv/
+env/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Base de datos local (se regenera con migrate + seed_data, no se versiona)
+db.sqlite3
+db.sqlite3-journal
+
+# Archivos estáticos recolectados (collectstatic), no el código fuente
+/staticfiles/
+
+# Configuración de editores
+.vscode/
+.idea/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Variables de entorno / secretos (si en el futuro se usa .env)
+.env

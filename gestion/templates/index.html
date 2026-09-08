@@ -1,0 +1,215 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CEIA La Pintana · Sistema de Gestión</title>
+<link rel="stylesheet" href="{% static 'gestion/css/estilos.css' %}">
+</head>
+<body>
+<a href="#main-content" class="skip-link">Saltar al contenido</a>
+
+<!-- ===================== LOGIN ===================== -->
+<section class="login-wrap" id="login-screen">
+  <div class="login-card">
+    <div class="mark" aria-hidden="true">CE</div>
+    <h1>CEIA La Pintana</h1>
+    <p class="sub">Sistema de Gestión Escolar — inicia sesión para continuar</p>
+    <form id="login-form">
+      <div style="margin-bottom:14px;">
+        <label for="login-email">Correo institucional</label>
+        <input type="email" id="login-email" required placeholder="director@ceia.cl" autocomplete="username">
+      </div>
+      <div style="margin-bottom:18px;">
+        <label for="login-password">Contraseña</label>
+        <input type="password" id="login-password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn gold wide" id="btn-login">Ingresar</button>
+      <div class="msg" id="msg-login" role="status" aria-live="polite"></div>
+    </form>
+    <p class="hint">Acceso según rol: <strong>director</strong> ve todos los módulos, <strong>administrativo</strong> gestiona estudiantes/atrasos/inventario, <strong>consulta</strong> solo visualiza estudiantes y reportes.</p>
+  </div>
+</section>
+
+<!-- ===================== APP ===================== -->
+<div id="app-shell" hidden>
+  <header class="top">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">CE</div>
+      <div>
+        <h1>CEIA La Pintana</h1>
+        <p>Sistema de Gestión Escolar</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="badge-proto live" id="api-status">Conectando a la API…</span>
+      <span id="user-chip"></span>
+      <button class="btn-logout" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Secciones del sistema">
+    <button role="tab" id="tab-estudiantes" aria-controls="panel-estudiantes" aria-selected="true">Estudiantes</button>
+    <button role="tab" id="tab-atrasos" aria-controls="panel-atrasos" aria-selected="false">Atrasos</button>
+    <button role="tab" id="tab-inventario" aria-controls="panel-inventario" aria-selected="false">Inventario</button>
+    <button role="tab" id="tab-apoderados" aria-controls="panel-apoderados" aria-selected="false">Apoderados</button>
+    <button role="tab" id="tab-reportes" aria-controls="panel-reportes" aria-selected="false">Reportes</button>
+  </nav>
+
+  <main id="main-content">
+
+    <!-- ESTUDIANTES -->
+    <section class="panel active" id="panel-estudiantes" role="tabpanel" aria-labelledby="tab-estudiantes">
+      <h2 class="section-title">Estudiantes</h2>
+      <p class="section-desc">Datos en vivo desde /api/estudiantes/, /buscar_por_rut/ y /por_curso/.</p>
+
+      <div class="card">
+        <h3>Buscar estudiante</h3>
+        <div class="row">
+          <div>
+            <label for="rut-input">RUT</label>
+            <input type="text" id="rut-input" placeholder="Ej: 12345678-9">
+          </div>
+          <div>
+            <label for="curso-select">Curso</label>
+            <select id="curso-select">
+              <option value="">Todos los cursos</option>
+            </select>
+          </div>
+          <div style="flex:0 0 auto; display:flex; gap:8px;">
+            <button class="btn" id="btn-buscar-est">Buscar</button>
+            <button class="btn ghost" id="btn-limpiar-est">Limpiar</button>
+          </div>
+        </div>
+        <div class="msg" id="msg-estudiantes" role="status" aria-live="polite"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>Listado</h3>
+        <table id="tabla-estudiantes">
+          <thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Apoderado</th><th>Acción</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ATRASOS -->
+    <section class="panel" id="panel-atrasos" role="tabpanel" aria-labelledby="tab-atrasos" hidden>
+      <h2 class="section-title">Registro de atrasos</h2>
+      <p class="section-desc">POST /api/atrasos/registrar/: valida duplicado del día y evalúa aviso al apoderado desde el 4° atraso del mes.</p>
+
+      <div class="card">
+        <h3>Registrar atraso</h3>
+        <div class="row">
+          <div>
+            <label for="atraso-estudiante">Estudiante</label>
+            <select id="atraso-estudiante"></select>
+          </div>
+          <div>
+            <label for="atraso-minutos">Minutos de atraso</label>
+            <input type="text" id="atraso-minutos" value="15" inputmode="numeric">
+          </div>
+          <div style="flex:0 0 auto;">
+            <button class="btn gold" id="btn-registrar-atraso">Registrar atraso</button>
+          </div>
+        </div>
+        <div class="msg" id="msg-atrasos" role="status" aria-live="polite"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>Atrasos registrados este mes</h3>
+        <table>
+          <thead><tr><th>Estudiante</th><th>Curso</th><th>Fecha</th><th>Minutos</th></tr></thead>
+          <tbody id="tabla-atrasos"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- INVENTARIO -->
+    <section class="panel" id="panel-inventario" role="tabpanel" aria-labelledby="tab-inventario" hidden>
+      <h2 class="section-title">Inventario de bodega</h2>
+      <p class="section-desc">/api/productos/, /api/movimientos/subir_stock/ y /bajar_stock/.</p>
+
+      <div class="card">
+        <h3>Productos</h3>
+        <table>
+          <thead><tr><th>Producto</th><th>Ubicación</th><th>Stock</th><th>Mínimo</th><th>Estado</th><th>Movimiento</th></tr></thead>
+          <tbody id="tabla-inventario"></tbody>
+        </table>
+        <div class="msg" id="msg-inventario" role="status" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- APODERADOS -->
+    <section class="panel" id="panel-apoderados" role="tabpanel" aria-labelledby="tab-apoderados" hidden>
+      <h2 class="section-title">Apoderados</h2>
+      <p class="section-desc">Módulo nuevo de esta etapa — /api/apoderados/ y /api/apoderados/buscar_por_rut/.</p>
+
+      <div class="card">
+        <h3>Buscar apoderado</h3>
+        <div class="row">
+          <div>
+            <label for="apoderado-rut-input">RUT del apoderado</label>
+            <input type="text" id="apoderado-rut-input" placeholder="Ej: 11222333-4">
+          </div>
+          <div style="flex:0 0 auto;">
+            <button class="btn" id="btn-buscar-apoderado">Buscar</button>
+          </div>
+        </div>
+        <div class="msg" id="msg-apoderados" role="status" aria-live="polite"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>Listado</h3>
+        <table>
+          <thead><tr><th>Nombre</th><th>RUT</th><th>Teléfono</th><th>Email</th></tr></thead>
+          <tbody id="tabla-apoderados"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- REPORTES -->
+    <section class="panel" id="panel-reportes" role="tabpanel" aria-labelledby="tab-reportes" hidden>
+      <h2 class="section-title">Reporte de atrasos por curso</h2>
+      <p class="section-desc">/api/atrasos/reporte_por_curso/.</p>
+
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); margin-bottom:18px;">
+        <div class="stat"><div class="num" id="stat-cursos">–</div><div class="lbl">Cursos activos</div></div>
+        <div class="stat"><div class="num" id="stat-estudiantes">–</div><div class="lbl">Estudiantes activos</div></div>
+        <div class="stat"><div class="num" id="stat-atrasos">–</div><div class="lbl">Atrasos este mes</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Atrasos por curso</h3>
+        <div id="bars"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>Detalle</h3>
+        <table>
+          <thead><tr><th>Curso</th><th>Estudiantes</th><th>Atrasos (mes)</th><th>Promedio minutos</th></tr></thead>
+          <tbody id="tabla-reportes"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="note">
+    Panel conectado a la API REST de Django (mismo origen, prefijo /api/). Componentes JS organizados en gestion/static/gestion/js/.
+  </footer>
+</div>
+
+<script src="{% static 'gestion/js/api.js' %}"></script>
+<script src="{% static 'gestion/js/ui-utils.js' %}"></script>
+<script src="{% static 'gestion/js/tabs.js' %}"></script>
+<script src="{% static 'gestion/js/auth.js' %}"></script>
+<script src="{% static 'gestion/js/estudiantes.js' %}"></script>
+<script src="{% static 'gestion/js/atrasos.js' %}"></script>
+<script src="{% static 'gestion/js/inventario.js' %}"></script>
+<script src="{% static 'gestion/js/apoderados.js' %}"></script>
+<script src="{% static 'gestion/js/reportes.js' %}"></script>
+<script src="{% static 'gestion/js/main.js' %}"></script>
+</body>
+</html>
