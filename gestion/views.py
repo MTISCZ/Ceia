@@ -61,7 +61,8 @@ class EstudianteViewSet(viewsets.ModelViewSet):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AtrasoViewSet(viewsets.ModelViewSet):
-    queryset = Atrasos.objects.all()
+    # select_related evita 1 query extra por fila al serializar id_estudiante (N+1)
+    queryset = Atrasos.objects.select_related('id_estudiante').all()
     serializer_class = AtrasoSerializer
     
     @action(detail=False, methods=['post'])
@@ -111,32 +112,46 @@ class AtrasoViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def reporte_por_curso(self, request):
-        """Reporte de atrasos agrupado por curso (compatible con SQLite)"""
+        """
+        Reporte de atrasos agrupado por curso (compatible con SQLite).
+
+        Optimizado en EPE 3: antes se hacía 1 query por curso (N+1) para
+        contar estudiantes y otra más para los atrasos de ese curso. Ahora
+        se resuelve con dos queries agregadas en total, independientemente
+        de cuántos cursos existan.
+        """
         mes_actual = date.today().month
-        
-        resultados = []
-        cursos = Estudiantes.objects.filter(activo=True).values('curso').distinct()
-        
-        for curso_data in cursos:
-            curso_nombre = curso_data['curso']
-            estudiantes = Estudiantes.objects.filter(curso=curso_nombre, activo=True)
-            total_estudiantes = estudiantes.count()
-            
-            atrasos = Atrasos.objects.filter(
-                id_estudiante__in=estudiantes,
-                fecha__month=mes_actual
+
+        # 1 query: total de estudiantes activos por curso
+        totales_estudiantes = {
+            fila['curso']: fila['total']
+            for fila in Estudiantes.objects.filter(activo=True)
+                                            .values('curso')
+                                            .annotate(total=Count('id_estudiante'))
+        }
+
+        # 1 query: total y promedio de atrasos del mes por curso
+        atrasos_por_curso = (
+            Atrasos.objects.filter(
+                fecha__month=mes_actual,
+                id_estudiante__activo=True
             )
-            total_atrasos = atrasos.count()
-            
-            promedio = atrasos.aggregate(promedio=Avg('minutos_atraso'))['promedio'] or 0
-            
+            .values(curso=F('id_estudiante__curso'))
+            .annotate(total_atrasos=Count('id_atraso'), promedio=Avg('minutos_atraso'))
+        )
+        datos_atrasos = {fila['curso']: fila for fila in atrasos_por_curso}
+
+        resultados = []
+        for curso_nombre, total_estudiantes in totales_estudiantes.items():
+            fila_atrasos = datos_atrasos.get(curso_nombre, {})
             resultados.append({
                 'curso': curso_nombre,
                 'total_estudiantes': total_estudiantes,
-                'total_atrasos': total_atrasos,
-                'promedio_minutos': round(promedio, 0)
+                'total_atrasos': fila_atrasos.get('total_atrasos', 0),
+                'promedio_minutos': round(fila_atrasos.get('promedio') or 0, 0)
             })
-        
+
+        resultados.sort(key=lambda r: r['curso'])
         return Response(resultados)
 
 
@@ -166,7 +181,8 @@ class ProductoViewSet(viewsets.ModelViewSet):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class MovimientoStockViewSet(viewsets.ModelViewSet):
-    queryset = MovimientosStock.objects.all()
+    # select_related evita 1 query extra por fila al serializar id_producto (N+1)
+    queryset = MovimientosStock.objects.select_related('id_producto').all()
     serializer_class = MovimientoStockSerializer
     
     @action(detail=False, methods=['post'])

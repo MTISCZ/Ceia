@@ -146,6 +146,59 @@ class ApoderadoAPITestCase(TestCase):
         self.assertEqual(response.data[0]['apoderado_nombre'], 'Maria Gonzalez')
 
 
+class ReporteAPITestCase(TestCase):
+    """
+    Pruebas del reporte de atrasos por curso (EPE 3: antes sin cobertura de
+    pruebas). Verifica el resultado agregado y que la version optimizada
+    (una query por tabla, sin N+1) siga entregando los mismos datos.
+    """
+
+    def setUp(self):
+        from datetime import date
+        from .models import Atrasos
+
+        self.client = APIClient()
+        self.hoy = date.today()
+
+        self.e1 = Estudiantes.objects.create(
+            rut='20000000-1', nombre='Sofia', apellido_paterno='Rojas',
+            curso='1 Medio A', email_apoderado='a@a.cl'
+        )
+        self.e2 = Estudiantes.objects.create(
+            rut='20000000-2', nombre='Tomas', apellido_paterno='Diaz',
+            curso='1 Medio A', email_apoderado='b@b.cl'
+        )
+        self.e3 = Estudiantes.objects.create(
+            rut='20000000-3', nombre='Valentina', apellido_paterno='Soto',
+            curso='2 Medio B', email_apoderado='c@c.cl'
+        )
+
+        Atrasos.objects.create(id_estudiante=self.e1, fecha=self.hoy, hora='08:10:00', minutos_atraso=10)
+        Atrasos.objects.create(id_estudiante=self.e2, fecha=self.hoy, hora='08:20:00', minutos_atraso=20)
+        # e3 (2 Medio B) no tiene atrasos este mes -> debe aparecer con 0, no desaparecer del reporte
+
+    def test_reporte_agrupa_por_curso_correctamente(self):
+        response = self.client.get('/api/atrasos/reporte_por_curso/')
+        self.assertEqual(response.status_code, 200)
+
+        por_curso = {fila['curso']: fila for fila in response.data}
+
+        self.assertEqual(por_curso['1 Medio A']['total_estudiantes'], 2)
+        self.assertEqual(por_curso['1 Medio A']['total_atrasos'], 2)
+        self.assertEqual(por_curso['1 Medio A']['promedio_minutos'], 15)
+
+        self.assertEqual(por_curso['2 Medio B']['total_estudiantes'], 1)
+        self.assertEqual(por_curso['2 Medio B']['total_atrasos'], 0)
+        self.assertEqual(por_curso['2 Medio B']['promedio_minutos'], 0)
+
+    def test_reporte_usa_numero_constante_de_queries(self):
+        # Regresion: la version original hacia 1 query de conteo + 1 de
+        # atrasos POR CADA curso (N+1). Con 2 cursos deberia usar solo 2
+        # queries agregadas en total, sin importar cuantos cursos existan.
+        with self.assertNumQueries(2):
+            self.client.get('/api/atrasos/reporte_por_curso/')
+
+
 class IntegracionFrontBackDBTestCase(TestCase):
     """
     Pruebas de integracion de extremo a extremo: simulan el flujo que realiza
